@@ -1,60 +1,40 @@
-name: Publish Docker Image
+name: Build and Push Docker Image to GHCR
 
 on:
-  release:
-    types: [published]
-
-permissions:
-  packages: write
-  contents: read
-  attestations: write
-  id-token: write
+  workflow_dispatch:
 
 jobs:
-  publish_docker_image:
-    name: publish docker image
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - id: meta
-        uses: docker/metadata-action@v5.5.1
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - id: debian
-        uses: docker/build-push-action@v6.5.0
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/attest-build-provenance@v1
-        with:
-          subject-name: ghcr.io/${{ github.repository }}
-          subject-digest: ${{ steps.debian.outputs.digest }}
-          push-to-registry: true
+    - name: Set IMAGE_REPO (lowercase owner)
+      run: echo "IMAGE_REPO=$(echo ghcr.io/${{ github.repository_owner }}/vercel-log-drain | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - id: alpine
-        uses: docker/build-push-action@v6.5.0
-        with:
-          context: .
-          file: ./Dockerfile.alpine
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.event.release.tag_name }}-alpine
-          labels: ${{ steps.meta.outputs.labels }}
+    - name: Extract short SHA
+      run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - uses: actions/attest-build-provenance@v1
-        with:
-          subject-name: ghcr.io/${{ github.repository }}
-          subject-digest: ${{ steps.alpine.outputs.digest }}
-          push-to-registry: true
-
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.IMAGE_REPO }}:latest
+          ${{ env.IMAGE_REPO }}:${{ env.SHORT_SHA }}
