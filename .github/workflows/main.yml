@@ -24,6 +24,9 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Set IMAGE_REPO (lowercase owner)
+      run: echo "IMAGE_REPO=$(echo ghcr.io/${{ github.repository_owner }}/vercel-log-drain | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
     - name: Extract short SHA
       id: vars
       run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -34,5 +37,5 @@ jobs:
         context: ./vercel-log-drain-main
         push: true
         tags: |
-          ghcr.io/${{ github.repository_owner }}/vercel-log-drain:latest
-          ghcr.io/${{ github.repository_owner }}/vercel-log-drain:${{ env.SHORT_SHA }}
+          ${{ env.IMAGE_REPO }}:latest
+          ${{ env.IMAGE_REPO }}:${{ env.SHORT_SHA }}
